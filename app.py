@@ -201,8 +201,6 @@ if 'errors' in st.session_state and st.session_state.errors:
     # --- CHANGE 2: New Label in the Green Box ---
     st.success(f"**Live Preview:** {corrected_sentence}")
     
-    st.subheader("Interactive Corrections")
-    # ... (the rest of the code remains the same) ...
     
     st.subheader("Interactive Corrections")
     unresolved_errors = [e for e in st.session_state.errors if not e.get('resolved', False)]
