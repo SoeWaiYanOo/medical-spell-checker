@@ -141,9 +141,9 @@ def ignore_error(error_index):
     st.session_state.errors[error_index]['resolved'] = True
 
 # --- STREAMLIT PAGE CONFIG AND LAYOUT ---
-st.set_page_config(page_title="Medical Spell Checker", layout="wide", page_icon="🩺")
+st.set_page_config(page_title="Medical Spell Checker", layout="wide")
 
-st.title("🩺 Advanced Medical Spell Checker")
+st.title("Advanced Medical Spell Checker")
 
 # --- LOAD MODELS AND DISPLAY CORPUS INFO ---
 with st.spinner("Loading dictionary and models..."):
@@ -173,7 +173,7 @@ with col2:
     else:
         filtered_dict = word_dictionary.head(1000)
     
-    st.dataframe(filtered_dict, height=280, use_container_width=True)
+    st.dataframe(filtered_dict, height=200, use_container_width=True)
 
 # --- INTERACTIVE UI BLOCK ---
 if st.button("Check Spelling", key="main_check_button", use_container_width=True):
