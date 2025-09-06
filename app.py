@@ -87,7 +87,7 @@ class SpellChecker:
                 })
         return errors
 
-    def check_real_word_errors(self, words, threshold=0.00001):
+    def check_real_word_errors(self, words, threshold=0.000001):
         errors = []
         for i in range(len(words) - 1):
             prev_word = words[i].lower()
@@ -116,8 +116,7 @@ class SpellChecker:
                         })
         return errors
 
-
-# --- UI HELPER FUNCTIONS ---
+# --- UI HELPER FUNCTION ---
 def highlight_text(words, errors):
     error_positions = {e['position']: e['type'] for e in errors}
     highlighted_words = []
@@ -131,14 +130,6 @@ def highlight_text(words, errors):
     
     html_text = " ".join(highlighted_words)
     return re.sub(r'\s+([.,;?!])', r'\1', html_text)
-
-def update_word(error_index, new_word):
-    error_position = st.session_state.errors[error_index]['position']
-    st.session_state.words[error_position] = new_word
-    st.session_state.errors[error_index]['resolved'] = True
-
-def ignore_error(error_index):
-    st.session_state.errors[error_index]['resolved'] = True
 
 # --- STREAMLIT PAGE CONFIG AND LAYOUT ---
 st.set_page_config(page_title="Medical Spell Checker", layout="wide", page_icon="🩺")
@@ -175,65 +166,52 @@ with col2:
     
     st.dataframe(filtered_dict, height=280, use_container_width=True)
 
-# --- INTERACTIVE UI BLOCK ---
+# --- NEW, SIMPLIFIED RESULTS BLOCK ---
 if st.button("Check Spelling", key="main_check_button", use_container_width=True):
     if user_text:
-        st.session_state.words = re.findall(r'\b\w+\b|[.,;?!]', user_text)
-        non_word_errors = spell_checker.check_non_word_errors(st.session_state.words)
-        real_word_errors = spell_checker.check_real_word_errors(st.session_state.words)
-        errors = sorted(non_word_errors + real_word_errors, key=lambda x: x['position'])
+        words = re.findall(r'\b\w+\b|[.,;?!]', user_text)
         
-        for error in errors:
-            error['resolved'] = False
-        st.session_state.errors = errors
-    else:
-        st.warning("Please enter some text to check.")
+        # 1. Find all errors
+        non_word_errors = spell_checker.check_non_word_errors(words)
+        real_word_errors = spell_checker.check_real_word_errors(words)
+        all_errors = sorted(non_word_errors + real_word_errors, key=lambda x: x['position'])
 
-if 'errors' in st.session_state and st.session_state.errors:
-    
-    # --- CHANGE 1: New Subheader ---
-    st.subheader("Live Text Preview")
-    highlighted_html = highlight_text(st.session_state.words, st.session_state.errors)
-    st.markdown(highlighted_html, unsafe_allow_html=True)
+        if not all_errors:
+            st.success("✅ No spelling errors detected!")
+        else:
+            # 2. Display the highlighted original text
+            st.subheader("Live Text Preview")
+            highlighted_html = highlight_text(words, all_errors)
+            st.markdown(highlighted_html, unsafe_allow_html=True)
 
-    corrected_sentence = " ".join(st.session_state.words)
-    corrected_sentence = re.sub(r'\s+([.,;?!])', r'\1', corrected_sentence)
-    # --- CHANGE 2: New Label in the Green Box ---
-    st.success(f"**Live Preview:** {corrected_sentence}")
-    
-    
-    st.subheader("Interactive Corrections")
-    unresolved_errors = [e for e in st.session_state.errors if not e.get('resolved', False)]
-    if not unresolved_errors:
-        st.success("✅ All errors have been resolved!")
-    else:
-        st.warning(f"Found {len(unresolved_errors)} unresolved spelling error(s).")
-
-    for i, error in enumerate(st.session_state.errors):
-        if not error.get('resolved', False):
-            with st.container(border=True):
+            # 3. Auto-correct the sentence and find top suggestions
+            corrected_words = words[:]
+            correction_summary = []
+            
+            for error in all_errors:
                 candidates = spell_checker.generate_candidates(error['cleaned_word'])
-                previous_word = st.session_state.words[error['position'] - 1].lower() if error['position'] > 0 else None
+                previous_word = words[error['position'] - 1].lower() if error['position'] > 0 else None
                 final_suggestions = spell_checker.rank_candidates_by_context(candidates, previous_word)
                 
-                col1, col2 = st.columns([1, 3])
-                with col1:
-                    st.error(f"**{error['original_word']}**")
-                    color = "red" if error['type'] == "Non-Word" else "orange"
-                    st.markdown(f"Type: <span style='color:{color};'>{error['type']}</span>", unsafe_allow_html=True)
+                if final_suggestions:
+                    top_suggestion = final_suggestions[0]['word']
+                    corrected_words[error['position']] = top_suggestion
+                    correction_summary.append({
+                        'original': error['original_word'],
+                        'corrected': top_suggestion,
+                        'type': error['type']
+                    })
 
-                with col2:
-                    st.write("**Suggestions:**")
-                    # --- CHANGE 2: SIMPLIFIED BUTTONS ---
-                    top_suggestions = [s['word'] for s in final_suggestions[:4]] # Get top 4 suggestion words
-                    
-                    action_cols = st.columns(len(top_suggestions) + 1)
-                    
-                    for idx, suggestion in enumerate(top_suggestions):
-                        with action_cols[idx]:
-                            if st.button(suggestion, key=f"sugg_{i}_{suggestion}", use_container_width=True):
-                                update_word(i, suggestion)
+            # 4. Display the new "Recommended Sentence"
+            st.subheader("Recommended Sentence")
+            recommended_sentence = " ".join(corrected_words)
+            recommended_sentence = re.sub(r'\s+([.,;?!])', r'\1', recommended_sentence)
+            st.success(recommended_sentence)
 
-                    with action_cols[-1]:
-                        if st.button("Ignore", key=f"ignore_{i}", use_container_width=True):
-                            ignore_error(i)
+            # 5. Display the new "Correction Summary"
+            st.subheader("Correction Summary")
+            for correction in correction_summary:
+                color = "red" if correction['type'] == "Non-Word" else "orange"
+                st.markdown(f"- Changed <span style='color:{color};'>{correction['original']}</span> to **{correction['corrected']}**", unsafe_allow_html=True)
+    else:
+        st.warning("Please enter some text to check.")
