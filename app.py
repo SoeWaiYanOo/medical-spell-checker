@@ -47,13 +47,15 @@ def load_models():
     
     return word_dict_df, bigram_counts
 
-# --- Spell Checker Class ---
+# --- Spell Checker Class (UPGRADED) ---
 class SpellChecker:
-    def __init__(self, word_dict_df):
+    def __init__(self, word_dict_df, bigram_model_df):
         self.word_dict = word_dict_df
+        self.bigram_model = bigram_model_df # <-- NEW: The class now knows about bigrams
         self.vocab = set(word_dict_df['word'].tolist())
 
     def generate_candidates(self, word, max_distance=2):
+        # This function stays the same as before
         candidates = []
         dict_words = self.word_dict['word'].tolist()
         for dict_word in dict_words:
@@ -66,19 +68,50 @@ class SpellChecker:
                     'frequency': frequency
                 })
         candidates.sort(key=lambda x: (x['distance'], -x['frequency']))
-        return candidates[:5] # Return top 5
+        return candidates[:10] # Generate a larger pool of candidates to rank
+
+    # --- NEW METHOD TO ADD CONTEXT ---
+    def rank_candidates_by_context(self, candidates, previous_word):
+        """Re-ranks candidates based on their probability of following the previous word."""
+        if not previous_word or not candidates:
+            return [c['word'] for c in candidates[:5]] # Return top 5 if no context
+
+        ranked_suggestions = []
+        # Get the total count of the previous word to calculate probability
+        prev_word_count = self.word_dict[self.word_dict['word'] == previous_word]['frequency'].iloc[0] if previous_word in self.vocab else 0
+
+        for candidate in candidates:
+            candidate_word = candidate['word']
+            score = 0
+            if prev_word_count > 0:
+                # Find the count of the bigram (previous_word, candidate_word)
+                bigram_row = self.bigram_model[
+                    (self.bigram_model['word1'] == previous_word) & 
+                    (self.bigram_model['word2'] == candidate_word)
+                ]
+                
+                if not bigram_row.empty:
+                    bigram_count = bigram_row['frequency'].iloc[0]
+                    # Simple scoring: probability = count(bigram) / count(word1)
+                    score = bigram_count / prev_word_count
+
+            ranked_suggestions.append({'word': candidate_word, 'score': score})
+
+        # Sort by the context score (highest first), then return the top 5 words
+        ranked_suggestions.sort(key=lambda x: x['score'], reverse=True)
+        return [s['word'] for s in ranked_suggestions[:5]]
 
     def check_non_word_errors(self, words):
+        # This function also stays the same
         errors = []
         for i, word in enumerate(words):
-            # Simple word cleaning for checking
             cleaned_word = re.sub(r'[^\w\s]', '', word).lower()
             if cleaned_word and cleaned_word not in self.vocab:
-                suggestions = self.generate_candidates(cleaned_word)
+                # We now pass the original word and its cleaned version
                 errors.append({
                     'position': i,
-                    'word': word, # Keep the original word for display
-                    'suggestions': [s['word'] for s in suggestions]
+                    'original_word': word,
+                    'cleaned_word': cleaned_word
                 })
         return errors
 
@@ -105,25 +138,32 @@ user_text = st.text_area("Enter text to check:", "The pateint has diabetis and n
 # Create a button to trigger the spell check
 if st.button("Check Spelling"):
     if user_text:
-        # Split text into words while preserving punctuation
         words = re.findall(r'\b\w+\b|[.,;?!]', user_text)
-
-        # Perform the check for non-word errors
+        
         non_word_errors = spell_checker.check_non_word_errors(words)
-
+        
         st.subheader("Results:")
-
+        
         if not non_word_errors:
             st.success("✅ No spelling errors detected!")
         else:
             st.warning(f"Found {len(non_word_errors)} potential spelling error(s).")
-
-            # Display errors and suggestions in a structured way
+            
             for error in non_word_errors:
+                # First, generate candidates based on spelling
+                candidates = spell_checker.generate_candidates(error['cleaned_word'])
+                
+                # --- THIS IS THE UPGRADE ---
+                # Get the previous word for context (if it exists)
+                previous_word = words[error['position'] - 1].lower() if error['position'] > 0 else None
+                
+                # Now, re-rank the candidates using the new context method
+                final_suggestions = spell_checker.rank_candidates_by_context(candidates, previous_word)
+                
                 with st.container(border=True):
-                    st.metric(label="Misspelled Word", value=error['word'])
-                    suggestions = ", ".join(error['suggestions']) if error['suggestions'] else "No suggestions found"
-                    st.info(f"**Suggestions:** {suggestions}")
+                    st.metric(label="Misspelled Word", value=error['original_word'])
+                    suggestions_text = ", ".join(final_suggestions) if final_suggestions else "No suggestions found"
+                    st.info(f"**Suggestions:** {suggestions_text}")
     else:
         st.warning("Please enter some text to check.")
 
