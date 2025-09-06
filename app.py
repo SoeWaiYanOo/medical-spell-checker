@@ -149,8 +149,22 @@ def ignore_error(error_index):
     st.session_state.errors[error_index]['resolved'] = True
 
 
-# --- NEW INTERACTIVE UI BLOCK (Replace the old `if st.button(...)` block) ---
-if st.button("Check Spelling"):
+# This function will handle the logic for updating a word when a button is clicked
+def update_word(error_index, new_word):
+    # Find the original position of the error in the word list
+    error_position = st.session_state.errors[error_index]['position']
+    # Update the word in the session state's word list
+    st.session_state.words[error_position] = new_word
+    # Mark this error as "resolved"
+    st.session_state.errors[error_index]['resolved'] = True
+
+# This function handles ignoring an error
+def ignore_error(error_index):
+    st.session_state.errors[error_index]['resolved'] = True
+
+
+# --- INTERACTIVE UI BLOCK ---
+if st.button("Check Spelling", key="main_check_button"):
     if user_text:
         # Initialize session state for a new check
         st.session_state.words = re.findall(r'\b\w+\b|[.,;?!]', user_text)
@@ -206,8 +220,7 @@ if 'errors' in st.session_state and st.session_state.errors:
     corrected_sentence = re.sub(r'\s+([.,;?!])', r'\1', corrected_sentence)
     st.info(corrected_sentence)
 
-    else:
-        st.warning("Please enter some text to check.")
-
+# --- SIDEBAR CODE ---
 st.sidebar.header("About")
 st.sidebar.info("This spell checker uses a custom dictionary built from medical abstracts. The core logic is based on Levenshtein distance for generating candidate corrections for non-word errors.")
+
