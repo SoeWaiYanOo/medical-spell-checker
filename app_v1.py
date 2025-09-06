@@ -192,7 +192,7 @@ if st.button("Check Spelling", key="main_check_button", use_container_width=True
 if 'errors' in st.session_state and st.session_state.errors:
     
     # --- CHANGE 1: New Subheader ---
-    st.subheader("Live Text Preview")
+    st.subheader("Result")
     highlighted_html = highlight_text(st.session_state.words, st.session_state.errors)
     st.markdown(highlighted_html, unsafe_allow_html=True)
 
