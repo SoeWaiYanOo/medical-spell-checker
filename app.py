@@ -193,3 +193,74 @@ if st.button("Check Spelling"):
 
 st.sidebar.header("About")
 st.sidebar.info("This spell checker uses a custom dictionary built from medical abstracts. The core logic is based on Levenshtein distance for generating candidate corrections for non-word errors.")
+
+# This function will handle the logic for updating a word when a button is clicked
+def update_word(error_index, new_word):
+    # Find the original position of the error in the word list
+    error_position = st.session_state.errors[error_index]['position']
+    # Update the word in the session state's word list
+    st.session_state.words[error_position] = new_word
+    # Mark this error as "resolved"
+    st.session_state.errors[error_index]['resolved'] = True
+
+# This function handles ignoring an error
+def ignore_error(error_index):
+    st.session_state.errors[error_index]['resolved'] = True
+
+
+# --- NEW INTERACTIVE UI BLOCK (Replace the old `if st.button(...)` block) ---
+if st.button("Check Spelling"):
+    if user_text:
+        # Initialize session state for a new check
+        st.session_state.words = re.findall(r'\b\w+\b|[.,;?!]', user_text)
+        errors = spell_checker.check_non_word_errors(st.session_state.words)
+        # Add a 'resolved' key to each error to track its state
+        for error in errors:
+            error['resolved'] = False
+        st.session_state.errors = errors
+    else:
+        st.warning("Please enter some text to check.")
+
+# Check if there are errors in the session state to display
+if 'errors' in st.session_state and st.session_state.errors:
+    
+    st.subheader("Interactive Corrections:")
+    
+    unresolved_errors = [e for e in st.session_state.errors if not e.get('resolved', False)]
+    
+    if not unresolved_errors:
+        st.success("All errors have been resolved!")
+    else:
+        st.warning(f"Found {len(unresolved_errors)} unresolved spelling error(s).")
+
+    # Display the interactive correction widgets for each unresolved error
+    for i, error in enumerate(st.session_state.errors):
+        if not error.get('resolved', False):
+            with st.container(border=True):
+                # Get suggestions
+                candidates = spell_checker.generate_candidates(error['cleaned_word'])
+                previous_word = st.session_state.words[error['position'] - 1].lower() if error['position'] > 0 else None
+                final_suggestions = spell_checker.rank_candidates_by_context(candidates, previous_word)
+
+                # Use columns for a cleaner layout
+                col1, col2 = st.columns([1, 3])
+                with col1:
+                    st.error(f"**{error['original_word']}**")
+                
+                with col2:
+                    # Create a button for each suggestion
+                    for suggestion in final_suggestions[:3]: # Show top 3 suggestions
+                        st.button(
+                            suggestion, 
+                            key=f"sugg_{i}_{suggestion}", 
+                            on_click=update_word, 
+                            args=(i, suggestion)
+                        )
+                    # Create an ignore button
+                    st.button("Ignore", key=f"ignore_{i}", on_click=ignore_error, args=(i,))
+
+    st.subheader("Corrected Text:")
+    # Join the (potentially modified) list of words from session state
+    corrected_sentence = " ".join(st.session_state.words)
+    corrected_sentence = re.sub(r'\s+([.,;?!])', r'\1', corrected_sentence)
+    st.info(corrected_sentence)
