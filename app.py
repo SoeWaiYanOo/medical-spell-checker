@@ -135,65 +135,6 @@ st.success("Models loaded successfully! Ready to check your text.")
 # Create the text area for user input
 user_text = st.text_area("Enter text to check:", "The pateint has diabetis and needs treatmnt.", height=150)
 
-# Create a button to trigger the spell check
-if st.button("Check Spelling"):
-    if user_text:
-        words = re.findall(r'\b\w+\b|[.,;?!]', user_text)
-        
-        non_word_errors = spell_checker.check_non_word_errors(words)
-        
-        st.subheader("Results:")
-        
-        if not non_word_errors:
-            st.success("✅ No spelling errors detected!")
-        else:
-            st.warning(f"Found {len(non_word_errors)} potential spelling error(s).")
-            
-            for error in non_word_errors:
-                # First, generate candidates based on spelling
-                candidates = spell_checker.generate_candidates(error['cleaned_word'])
-                
-                # --- THIS IS THE UPGRADE ---
-                # Get the previous word for context (if it exists)
-                previous_word = words[error['position'] - 1].lower() if error['position'] > 0 else None
-                
-                # Now, re-rank the candidates using the new context method
-                final_suggestions = spell_checker.rank_candidates_by_context(candidates, previous_word)
-                
-                with st.container(border=True):
-                    st.metric(label="Misspelled Word", value=error['original_word'])
-                    suggestions_text = ", ".join(final_suggestions) if final_suggestions else "No suggestions found"
-                    st.info(f"**Suggestions:** {suggestions_text}")
-                    
-            # --- ADD THIS NEW CODE BLOCK ---
-
-            # Create a corrected version of the text
-            st.subheader("Corrected Text:")
-            corrected_words = words[:] # Create a copy of the original word list
-            
-            # Loop through the errors in reverse to avoid index issues while replacing
-            for error in reversed(non_word_errors):
-                # Generate candidates and rank them to find the best one
-                candidates = spell_checker.generate_candidates(error['cleaned_word'])
-                previous_word = words[error['position'] - 1].lower() if error['position'] > 0 else None
-                final_suggestions = spell_checker.rank_candidates_by_context(candidates, previous_word)
-                
-                # Replace the misspelled word with the top suggestion
-                if final_suggestions:
-                    corrected_words[error['position']] = final_suggestions[0]
-
-            # Join the corrected words back into a sentence
-            corrected_sentence = " ".join(corrected_words)
-            # A bit of regex to clean up spacing around punctuation
-            corrected_sentence = re.sub(r'\s+([.,;?!])', r'\1', corrected_sentence)
-            
-            st.success(corrected_sentence)
-    else:
-        st.warning("Please enter some text to check.")
-
-st.sidebar.header("About")
-st.sidebar.info("This spell checker uses a custom dictionary built from medical abstracts. The core logic is based on Levenshtein distance for generating candidate corrections for non-word errors.")
-
 # This function will handle the logic for updating a word when a button is clicked
 def update_word(error_index, new_word):
     # Find the original position of the error in the word list
@@ -264,3 +205,9 @@ if 'errors' in st.session_state and st.session_state.errors:
     corrected_sentence = " ".join(st.session_state.words)
     corrected_sentence = re.sub(r'\s+([.,;?!])', r'\1', corrected_sentence)
     st.info(corrected_sentence)
+
+    else:
+        st.warning("Please enter some text to check.")
+
+st.sidebar.header("About")
+st.sidebar.info("This spell checker uses a custom dictionary built from medical abstracts. The core logic is based on Levenshtein distance for generating candidate corrections for non-word errors.")
