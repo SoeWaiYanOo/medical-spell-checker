@@ -39,7 +39,6 @@ class SpellChecker:
         self.vocab = set(word_dict_df['word'].tolist())
 
     def generate_candidates(self, word, max_distance=2):
-        # NOW RETURNS THE DISTANCE AS WELL
         candidates = []
         for dict_word in self.word_dict['word']:
             distance = levenshtein_distance(word, dict_word)
@@ -47,14 +46,13 @@ class SpellChecker:
                 frequency = self.word_dict[self.word_dict['word'] == dict_word]['frequency'].iloc[0]
                 candidates.append({
                     'word': dict_word,
-                    'distance': distance, # Keep the distance
+                    'distance': distance,
                     'frequency': frequency
                 })
         candidates.sort(key=lambda x: (x['distance'], -x['frequency']))
         return candidates[:10]
 
     def rank_candidates_by_context(self, candidates, previous_word):
-        # NOW RETURNS THE SCORE AS WELL
         if not previous_word or not candidates:
             return [{'word': c['word'], 'distance': c['distance'], 'score': 0} for c in candidates[:5]]
 
@@ -89,7 +87,6 @@ class SpellChecker:
                 })
         return errors
 
-    # NEW: REAL-WORD ERROR DETECTION
     def check_real_word_errors(self, words, threshold=0.00001):
         errors = []
         for i in range(len(words) - 1):
@@ -122,14 +119,13 @@ class SpellChecker:
 
 # --- UI HELPER FUNCTIONS ---
 def highlight_text(words, errors):
-    # NEW: HIGHLIGHTS TEXT WITH DIFFERENT COLORS
     error_positions = {e['position']: e['type'] for e in errors}
     highlighted_words = []
     for i, word in enumerate(words):
         if i in error_positions:
             error_type = error_positions[i]
             color = "#FF4B4B" if error_type == "Non-Word" else "#FFA500" # Red for Non-Word, Orange for Real-Word
-            highlighted_words.append(f'<span style="background-color: {color}; border-radius: 5px; padding: 2px 5px;">{word}</span>')
+            highlighted_words.append(f'<span style="background-color: {color}; border-radius: 5px; padding: 2px 5px; font-weight: 600;">{word}</span>')
         else:
             highlighted_words.append(word)
     
@@ -164,19 +160,18 @@ with col1:
     user_text = st.text_area(
         "Enter text to check:", 
         "The pateint has diabetis and needs treatmnt. The patience was discharged.", 
-        height=250 # NEW: Larger text editor
+        height=250
     )
     char_count = len(user_text)
-    st.caption(f"Characters: {char_count}") # NEW: Character counter
+    st.caption(f"Characters: {char_count}")
 
 with col2:
-    # NEW: DICTIONARY EXPLORER
     st.subheader("Corpus Dictionary Explorer")
     search_term = st.text_input("Search for a word in the corpus:")
     if search_term:
         filtered_dict = word_dictionary[word_dictionary['word'].str.contains(search_term, case=False, na=False)]
     else:
-        filtered_dict = word_dictionary.head(1000) # Show first 1000 words by default
+        filtered_dict = word_dictionary.head(1000)
     
     st.dataframe(filtered_dict, height=280, use_container_width=True)
 
@@ -184,7 +179,6 @@ with col2:
 if st.button("Check Spelling", key="main_check_button", use_container_width=True):
     if user_text:
         st.session_state.words = re.findall(r'\b\w+\b|[.,;?!]', user_text)
-        # COMBINE BOTH ERROR TYPES
         non_word_errors = spell_checker.check_non_word_errors(st.session_state.words)
         real_word_errors = spell_checker.check_real_word_errors(st.session_state.words)
         errors = sorted(non_word_errors + real_word_errors, key=lambda x: x['position'])
@@ -196,10 +190,15 @@ if st.button("Check Spelling", key="main_check_button", use_container_width=True
         st.warning("Please enter some text to check.")
 
 if 'errors' in st.session_state and st.session_state.errors:
-    st.subheader("Highlighted Text")
-    # NEW: DISPLAY HIGHLIGHTED TEXT
+    
+    # --- CHANGE 1: CORRECTED TEXT IS NOW HERE ---
+    st.subheader("Highlighted & Corrected Text")
     highlighted_html = highlight_text(st.session_state.words, st.session_state.errors)
     st.markdown(highlighted_html, unsafe_allow_html=True)
+
+    corrected_sentence = " ".join(st.session_state.words)
+    corrected_sentence = re.sub(r'\s+([.,;?!])', r'\1', corrected_sentence)
+    st.success(f"**Corrected:** {corrected_sentence}")
     
     st.subheader("Interactive Corrections")
     unresolved_errors = [e for e in st.session_state.errors if not e.get('resolved', False)]
@@ -218,25 +217,21 @@ if 'errors' in st.session_state and st.session_state.errors:
                 col1, col2 = st.columns([1, 3])
                 with col1:
                     st.error(f"**{error['original_word']}**")
-                    # NEW: Show error type
                     color = "red" if error['type'] == "Non-Word" else "orange"
                     st.markdown(f"Type: <span style='color:{color};'>{error['type']}</span>", unsafe_allow_html=True)
 
                 with col2:
                     st.write("**Suggestions:**")
-                    # NEW: Display suggestions with distance and score
-                    for suggestion in final_suggestions:
-                        label = f"**{suggestion['word']}** (Dist: {suggestion['distance']})"
-                        if suggestion['score'] > 0:
-                           label += f" - *Context Score: {suggestion['score']:.4f}*"
-                        
-                        if st.button(label, key=f"sugg_{i}_{suggestion['word']}", use_container_width=True):
-                            update_word(i, suggestion['word'])
+                    # --- CHANGE 2: SIMPLIFIED BUTTONS ---
+                    top_suggestions = [s['word'] for s in final_suggestions[:4]] # Get top 4 suggestion words
                     
-                    if st.button("Ignore", key=f"ignore_{i}", use_container_width=True):
-                        ignore_error(i)
+                    action_cols = st.columns(len(top_suggestions) + 1)
+                    
+                    for idx, suggestion in enumerate(top_suggestions):
+                        with action_cols[idx]:
+                            if st.button(suggestion, key=f"sugg_{i}_{suggestion}", use_container_width=True):
+                                update_word(i, suggestion)
 
-    st.subheader("Final Corrected Text")
-    corrected_sentence = " ".join(st.session_state.words)
-    corrected_sentence = re.sub(r'\s+([.,;?!])', r'\1', corrected_sentence)
-    st.success(corrected_sentence)
+                    with action_cols[-1]:
+                        if st.button("Ignore", key=f"ignore_{i}", use_container_width=True):
+                            ignore_error(i)
