@@ -13,7 +13,6 @@ import pandas as pd
 import re
 
 # --- Core Logic Functions ---
-# Levenshtein distance function (no changes needed)
 def levenshtein_distance(word1, word2):
     len1, len2 = len(word1), len(word2)
     matrix = [[0] * (len2 + 1) for _ in range(len1 + 1)]
@@ -25,37 +24,30 @@ def levenshtein_distance(word1, word2):
         for j in range(1, len2 + 1):
             cost = 0 if word1[i-1] == word2[j-1] else 1
             matrix[i][j] = min(
-                matrix[i-1][j] + 1,      # deletion
-                matrix[i][j-1] + 1,      # insertion
-                matrix[i-1][j-1] + cost  # substitution
+                matrix[i-1][j] + 1,
+                matrix[i][j-1] + 1,
+                matrix[i-1][j-1] + cost
             )
     return matrix[len1][len2]
 
-# --- NEW DATA LOADING FUNCTION ---
-# This is the key change. This function is fast because it loads small, ready-to-use files.
+# --- Data Loading Function ---
 @st.cache_data
 def load_models():
     """Loads the pre-processed dictionary and bigram models from CSV files."""
-    # Load the files, ensuring all data is treated as strings
     word_dict_df = pd.read_csv("word_dictionary.csv", dtype={'word': str})
     bigram_counts = pd.read_csv("bigram_model.csv", dtype={'word1': str, 'word2': str})
-
-    # --- THIS IS THE FIX ---
-    # Remove any rows that might have missing values (which can cause errors)
     word_dict_df.dropna(subset=['word'], inplace=True)
     bigram_counts.dropna(subset=['word1', 'word2'], inplace=True)
-    
     return word_dict_df, bigram_counts
 
-# --- Spell Checker Class (UPGRADED) ---
+# --- Spell Checker Class ---
 class SpellChecker:
     def __init__(self, word_dict_df, bigram_model_df):
         self.word_dict = word_dict_df
-        self.bigram_model = bigram_model_df # <-- NEW: The class now knows about bigrams
+        self.bigram_model = bigram_model_df
         self.vocab = set(word_dict_df['word'].tolist())
 
     def generate_candidates(self, word, max_distance=2):
-        # This function stays the same as before
         candidates = []
         dict_words = self.word_dict['word'].tolist()
         for dict_word in dict_words:
@@ -68,46 +60,37 @@ class SpellChecker:
                     'frequency': frequency
                 })
         candidates.sort(key=lambda x: (x['distance'], -x['frequency']))
-        return candidates[:10] # Generate a larger pool of candidates to rank
+        return candidates[:10]
 
-    # --- NEW METHOD TO ADD CONTEXT ---
     def rank_candidates_by_context(self, candidates, previous_word):
         """Re-ranks candidates based on their probability of following the previous word."""
         if not previous_word or not candidates:
-            return [c['word'] for c in candidates[:5]] # Return top 5 if no context
+            return [c['word'] for c in candidates[:5]]
 
         ranked_suggestions = []
-        # Get the total count of the previous word to calculate probability
         prev_word_count = self.word_dict[self.word_dict['word'] == previous_word]['frequency'].iloc[0] if previous_word in self.vocab else 0
 
         for candidate in candidates:
             candidate_word = candidate['word']
             score = 0
             if prev_word_count > 0:
-                # Find the count of the bigram (previous_word, candidate_word)
                 bigram_row = self.bigram_model[
-                    (self.bigram_model['word1'] == previous_word) & 
+                    (self.bigram_model['word1'] == previous_word) &
                     (self.bigram_model['word2'] == candidate_word)
                 ]
-                
                 if not bigram_row.empty:
                     bigram_count = bigram_row['frequency'].iloc[0]
-                    # Simple scoring: probability = count(bigram) / count(word1)
                     score = bigram_count / prev_word_count
-
             ranked_suggestions.append({'word': candidate_word, 'score': score})
 
-        # Sort by the context score (highest first), then return the top 5 words
         ranked_suggestions.sort(key=lambda x: x['score'], reverse=True)
         return [s['word'] for s in ranked_suggestions[:5]]
 
     def check_non_word_errors(self, words):
-        # This function also stays the same
         errors = []
         for i, word in enumerate(words):
             cleaned_word = re.sub(r'[^\w\s]', '', word).lower()
             if cleaned_word and cleaned_word not in self.vocab:
-                # We now pass the original word and its cleaned version
                 errors.append({
                     'position': i,
                     'original_word': word,
@@ -115,132 +98,83 @@ class SpellChecker:
                 })
         return errors
 
-# --- STREAMLIT USER INTERFACE ---
-
-# Set up the page title and icon
+# --- STREAMLIT PAGE CONFIG AND TITLE ---
 st.set_page_config(page_title="Medical Spell Checker", page_icon="🩺")
-
 st.title("🩺 Medical Text Spell Checker")
 st.write("This tool checks for spelling errors in medical text. It uses a dictionary built from the PubMed 20k RCT dataset to find and suggest corrections.")
 
-# Load the data using our NEW cached function
+# --- LOAD MODELS ---
 with st.spinner("Loading dictionary and models..."):
     word_dictionary, bigram_model = load_models()
-
-# Create an instance of our spell checker
 spell_checker = SpellChecker(word_dictionary, bigram_model)
-
 st.success("Models loaded successfully! Ready to check your text.")
 
-# Create the text area for user input
+# --- USER INPUT AREA ---
 user_text = st.text_area("Enter text to check:", "The pateint has diabetis and needs treatmnt.", height=150)
 
-# This function will handle the logic for updating a word when a button is clicked
+# --- UI HELPER FUNCTIONS ---
 def update_word(error_index, new_word):
-    # Find the original position of the error in the word list
     error_position = st.session_state.errors[error_index]['position']
-    # Update the word in the session state's word list
     st.session_state.words[error_position] = new_word
-    # Mark this error as "resolved"
     st.session_state.errors[error_index]['resolved'] = True
 
-# This function handles ignoring an error
 def ignore_error(error_index):
     st.session_state.errors[error_index]['resolved'] = True
-
-
-# This function will handle the logic for updating a word when a button is clicked
-def update_word(error_index, new_word):
-    # Find the original position of the error in the word list
-    error_position = st.session_state.errors[error_index]['position']
-    # Update the word in the session state's word list
-    st.session_state.words[error_position] = new_word
-    # Mark this error as "resolved"
-    st.session_state.errors[error_index]['resolved'] = True
-
-# This function handles ignoring an error
-def ignore_error(error_index):
-    st.session_state.errors[error_index]['resolved'] = True
-
 
 # --- INTERACTIVE UI BLOCK ---
 if st.button("Check Spelling", key="main_check_button"):
     if user_text:
-        # Initialize session state for a new check
         st.session_state.words = re.findall(r'\b\w+\b|[.,;?!]', user_text)
         errors = spell_checker.check_non_word_errors(st.session_state.words)
-        # Add a 'resolved' key to each error to track its state
         for error in errors:
             error['resolved'] = False
         st.session_state.errors = errors
     else:
         st.warning("Please enter some text to check.")
 
-# Check if there are errors in the session state to display
 if 'errors' in st.session_state and st.session_state.errors:
-    
     st.subheader("Interactive Corrections:")
-    
     unresolved_errors = [e for e in st.session_state.errors if not e.get('resolved', False)]
-    
     if not unresolved_errors:
         st.success("All errors have been resolved!")
     else:
         st.warning(f"Found {len(unresolved_errors)} unresolved spelling error(s).")
 
-    # Display the interactive correction widgets for each unresolved error
     for i, error in enumerate(st.session_state.errors):
         if not error.get('resolved', False):
             with st.container(border=True):
-                # Get suggestions
                 candidates = spell_checker.generate_candidates(error['cleaned_word'])
                 previous_word = st.session_state.words[error['position'] - 1].lower() if error['position'] > 0 else None
                 final_suggestions = spell_checker.rank_candidates_by_context(candidates, previous_word)
-
-                # Use columns for a cleaner layout
                 col1, col2 = st.columns([1, 3])
                 with col1:
                     st.error(f"**{error['original_word']}**")
-                
                 with col2:
-                    # Get the top 3 suggestions
                     top_suggestions = final_suggestions[:3]
-    
-                    # Create a list of columns with a number equal to suggestions + 1 (for the ignore button)
                     action_cols = st.columns(len(top_suggestions) + 1)
-
-                    # Place each suggestion button in its own column
                     for idx, suggestion in enumerate(top_suggestions):
                         with action_cols[idx]:
                             st.button(
-                                suggestion, 
-                                key=f"sugg_{i}_{suggestion}", 
-                                on_click=update_word, 
+                                suggestion,
+                                key=f"sugg_{i}_{suggestion}",
+                                on_click=update_word,
                                 args=(i, suggestion),
-                                use_container_width=True # Makes the button fill the column
+                                use_container_width=True
                             )
-
-                    # Place the ignore button in the last column
                     with action_cols[-1]:
                         st.button(
-                            "Ignore", 
-                            key=f"ignore_{i}", 
-                            on_click=ignore_error, 
+                            "Ignore",
+                            key=f"ignore_{i}",
+                            on_click=ignore_error,
                             args=(i,),
-                            use_container_width=True # Makes the button fill the column
+                            use_container_width=True
                         )
-    # Create an ignore button
-    st.button("Ignore", key=f"ignore_{i}", on_click=ignore_error, args=(i,))
-                    # Create an ignore button
-                    st.button("Ignore", key=f"ignore_{i}", on_click=ignore_error, args=(i,))
 
     st.subheader("Corrected Text:")
-    # Join the (potentially modified) list of words from session state
     corrected_sentence = " ".join(st.session_state.words)
     corrected_sentence = re.sub(r'\s+([.,;?!])', r'\1', corrected_sentence)
     st.info(corrected_sentence)
 
-# --- SIDEBAR CODE ---
+# --- SIDEBAR ---
 st.sidebar.header("About")
 st.sidebar.info("This spell checker uses a custom dictionary built from medical abstracts. The core logic is based on Levenshtein distance for generating candidate corrections for non-word errors.")
-
