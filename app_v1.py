@@ -173,7 +173,7 @@ with col2:
     else:
         filtered_dict = word_dictionary.head(1000)
     
-    st.dataframe(filtered_dict, height=180, use_container_width=True)
+    st.dataframe(filtered_dict, height=170, use_container_width=True)
 
 # --- INTERACTIVE UI BLOCK ---
 if st.button("Check Spelling", key="main_check_button", use_container_width=True):
