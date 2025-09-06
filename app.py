@@ -164,6 +164,30 @@ if st.button("Check Spelling"):
                     st.metric(label="Misspelled Word", value=error['original_word'])
                     suggestions_text = ", ".join(final_suggestions) if final_suggestions else "No suggestions found"
                     st.info(f"**Suggestions:** {suggestions_text}")
+                    
+            # --- ADD THIS NEW CODE BLOCK ---
+
+            # Create a corrected version of the text
+            st.subheader("Corrected Text:")
+            corrected_words = words[:] # Create a copy of the original word list
+            
+            # Loop through the errors in reverse to avoid index issues while replacing
+            for error in reversed(non_word_errors):
+                # Generate candidates and rank them to find the best one
+                candidates = spell_checker.generate_candidates(error['cleaned_word'])
+                previous_word = words[error['position'] - 1].lower() if error['position'] > 0 else None
+                final_suggestions = spell_checker.rank_candidates_by_context(candidates, previous_word)
+                
+                # Replace the misspelled word with the top suggestion
+                if final_suggestions:
+                    corrected_words[error['position']] = final_suggestions[0]
+
+            # Join the corrected words back into a sentence
+            corrected_sentence = " ".join(corrected_words)
+            # A bit of regex to clean up spacing around punctuation
+            corrected_sentence = re.sub(r'\s+([.,;?!])', r'\1', corrected_sentence)
+            
+            st.success(corrected_sentence)
     else:
         st.warning("Please enter some text to check.")
 
