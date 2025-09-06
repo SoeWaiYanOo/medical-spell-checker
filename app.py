@@ -191,14 +191,18 @@ if st.button("Check Spelling", key="main_check_button", use_container_width=True
 
 if 'errors' in st.session_state and st.session_state.errors:
     
-    # --- CHANGE 1: CORRECTED TEXT IS NOW HERE ---
-    st.subheader("Highlighted & Corrected Text")
+    # --- CHANGE 1: New Subheader ---
+    st.subheader("Live Text Preview")
     highlighted_html = highlight_text(st.session_state.words, st.session_state.errors)
     st.markdown(highlighted_html, unsafe_allow_html=True)
 
     corrected_sentence = " ".join(st.session_state.words)
     corrected_sentence = re.sub(r'\s+([.,;?!])', r'\1', corrected_sentence)
-    st.success(f"**Corrected:** {corrected_sentence}")
+    # --- CHANGE 2: New Label in the Green Box ---
+    st.success(f"**Live Preview:** {corrected_sentence}")
+    
+    st.subheader("Interactive Corrections")
+    # ... (the rest of the code remains the same) ...
     
     st.subheader("Interactive Corrections")
     unresolved_errors = [e for e in st.session_state.errors if not e.get('resolved', False)]
