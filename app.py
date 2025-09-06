@@ -36,8 +36,8 @@ def levenshtein_distance(word1, word2):
 @st.cache_data
 def load_models():
     """Loads the pre-processed dictionary and bigram models from CSV files."""
-    word_dict_df = pd.read_csv("word_dictionary.csv")
-    bigram_counts = pd.read_csv("bigram_model.csv")
+    word_dict_df = pd.read_csv("word_dictionary.csv", dtype={'word': str})
+    bigram_counts = pd.read_csv("bigram_model.csv", dtype={'word1': str, 'word2': str})
     return word_dict_df, bigram_counts
 
 # --- Spell Checker Class ---
