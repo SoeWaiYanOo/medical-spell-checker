@@ -128,7 +128,7 @@ with st.spinner("Loading dictionary and models..."):
     word_dictionary, bigram_model = load_models()
 
 # Create an instance of our spell checker
-spell_checker = SpellChecker(word_dictionary)
+spell_checker = SpellChecker(word_dictionary, bigram_model)
 
 st.success("Models loaded successfully! Ready to check your text.")
 
