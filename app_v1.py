@@ -150,7 +150,6 @@ with st.spinner("Loading dictionary and models..."):
     word_dictionary, bigram_model = load_models()
 spell_checker = SpellChecker(word_dictionary, bigram_model)
 
-st.success("Models loaded successfully!")
 st.metric(label="**Total Unique Words in Medical Corpus**", value=f"{len(word_dictionary):,}")
 
 col1, col2 = st.columns([2, 1])
