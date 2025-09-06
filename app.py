@@ -203,32 +203,32 @@ if 'errors' in st.session_state and st.session_state.errors:
                     st.error(f"**{error['original_word']}**")
                 
                 with col2:
-    # Get the top 3 suggestions
-    top_suggestions = final_suggestions[:3]
+                    # Get the top 3 suggestions
+                    top_suggestions = final_suggestions[:3]
     
-    # Create a list of columns with a number equal to suggestions + 1 (for the ignore button)
-    action_cols = st.columns(len(top_suggestions) + 1)
+                    # Create a list of columns with a number equal to suggestions + 1 (for the ignore button)
+                    action_cols = st.columns(len(top_suggestions) + 1)
 
-    # Place each suggestion button in its own column
-    for idx, suggestion in enumerate(top_suggestions):
-        with action_cols[idx]:
-            st.button(
-                suggestion, 
-                key=f"sugg_{i}_{suggestion}", 
-                on_click=update_word, 
-                args=(i, suggestion),
-                use_container_width=True # Makes the button fill the column
-            )
+                    # Place each suggestion button in its own column
+                    for idx, suggestion in enumerate(top_suggestions):
+                        with action_cols[idx]:
+                            st.button(
+                                suggestion, 
+                                key=f"sugg_{i}_{suggestion}", 
+                                on_click=update_word, 
+                                args=(i, suggestion),
+                                use_container_width=True # Makes the button fill the column
+                            )
 
-    # Place the ignore button in the last column
-    with action_cols[-1]:
-        st.button(
-            "Ignore", 
-            key=f"ignore_{i}", 
-            on_click=ignore_error, 
-            args=(i,),
-            use_container_width=True # Makes the button fill the column
-        )
+                    # Place the ignore button in the last column
+                    with action_cols[-1]:
+                        st.button(
+                            "Ignore", 
+                            key=f"ignore_{i}", 
+                            on_click=ignore_error, 
+                            args=(i,),
+                            use_container_width=True # Makes the button fill the column
+                        )
     # Create an ignore button
     st.button("Ignore", key=f"ignore_{i}", on_click=ignore_error, args=(i,))
                     # Create an ignore button
