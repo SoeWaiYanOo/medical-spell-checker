@@ -203,14 +203,17 @@ if 'errors' in st.session_state and st.session_state.errors:
                     st.error(f"**{error['original_word']}**")
                 
                 with col2:
+                    with col2:
                     # Create a button for each suggestion
-                    for suggestion in final_suggestions[:3]: # Show top 3 suggestions
-                        st.button(
+                        for suggestion in final_suggestions[:3]: # Show top 3 suggestions
+                            st.button(
                             suggestion, 
                             key=f"sugg_{i}_{suggestion}", 
                             on_click=update_word, 
                             args=(i, suggestion)
-                        )
+                            )
+    # Create an ignore button
+    st.button("Ignore", key=f"ignore_{i}", on_click=ignore_error, args=(i,))
                     # Create an ignore button
                     st.button("Ignore", key=f"ignore_{i}", on_click=ignore_error, args=(i,))
 
